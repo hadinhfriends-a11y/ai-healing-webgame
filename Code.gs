@@ -9,7 +9,8 @@ const CONFIG = Object.freeze({
   BRAND_NAME: 'AI INNER LAB',
   COURSE_NAME: 'Nâng Cấp Bản Thân Trong Thời Đại AI',
   // Thay bằng landing page khóa học thật khi có.
-  COURSE_URL: 'https://example.com/khoa-hoc'
+  COURSE_URL: 'https://example.com/khoa-hoc',
+  PUBLIC_APP_URL: 'https://hadinhfriends-a11y.github.io/ai-healing-webgame/'
 });
 
 const HEADERS = [
@@ -41,8 +42,29 @@ const TEST_TITLES = Object.freeze({
 });
 
 function doGet(e) {
+  const p = (e && e.parameter) || {};
+
+  // API đọc kết quả cho bản GitHub Pages (JSONP để tránh CORS).
+  if (p.action === 'getResult') {
+    const data = getResult(p.id);
+    const callback = cleanCallback_(p.callback);
+    const body = JSON.stringify(data || null);
+    if (callback) {
+      return ContentService.createTextOutput(callback + '(' + body + ');')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return ContentService.createTextOutput(body)
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (p.action === 'ping') {
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, service: 'AI INNER LAB' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Vẫn cho phép chạy trực tiếp web từ Apps Script nếu cần.
   const template = HtmlService.createTemplateFromFile('Index');
-  template.resultId = cleanText_(e && e.parameter && e.parameter.result, 80);
+  template.resultId = cleanText_(p.result, 80);
   template.appConfig = JSON.stringify({
     brandName: CONFIG.BRAND_NAME,
     courseName: CONFIG.COURSE_NAME,
@@ -56,12 +78,27 @@ function doGet(e) {
 }
 
 /**
+ * API ghi kết quả cho GitHub Pages. Dùng POST text/plain để tránh preflight CORS.
+ */
+function doPost(e) {
+  try {
+    const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    const result = saveResult(payload);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err && err.message || err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
  * Lưu một lượt làm test và trả về link kết quả riêng.
  */
 function saveResult(payload) {
   payload = payload || {};
   const sheet = getSheet_();
-  const id = makeSubmissionId_();
+  const id = cleanText_(payload.submissionId, 80) || makeSubmissionId_();
   const resultUrl = buildResultUrl_(id);
 
   const surveySnapshot = safeObject_(payload.surveySnapshot);
@@ -160,9 +197,16 @@ function getSheet_() {
 }
 
 function buildResultUrl_(id) {
-  const base = ScriptApp.getService().getUrl();
-  if (!base) return '?result=' + encodeURIComponent(id);
-  return base + '?result=' + encodeURIComponent(id);
+  const base = (CONFIG.PUBLIC_APP_URL || '').replace(/\/?$/, '/');
+  if (base) return base + '?result=' + encodeURIComponent(id);
+  const scriptUrl = ScriptApp.getService().getUrl();
+  if (!scriptUrl) return '?result=' + encodeURIComponent(id);
+  return scriptUrl + '?result=' + encodeURIComponent(id);
+}
+
+function cleanCallback_(v) {
+  const s = cleanText_(v, 120);
+  return /^[A-Za-z_$][0-9A-Za-z_$]*(?:\.[A-Za-z_$][0-9A-Za-z_$]*)*$/.test(s) ? s : '';
 }
 
 function makeSubmissionId_() {
