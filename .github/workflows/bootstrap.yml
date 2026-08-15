@@ -3,6 +3,8 @@ name: Publish packaged web game
 on:
   push:
     branches: [main]
+    paths:
+      - 'bootstrap/READY'
   workflow_dispatch:
 
 permissions:
@@ -16,9 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract web game
+      - name: Rebuild and extract web game
         run: |
-          tar -xzf bootstrap/pages.tgz
+          cat bootstrap/part-* > /tmp/pages.b64
+          base64 -d /tmp/pages.b64 > /tmp/pages.tgz
+          tar -xzf /tmp/pages.tgz
           cp preview.html index.html
           touch .nojekyll
           rm -rf bootstrap
