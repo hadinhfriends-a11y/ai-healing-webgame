@@ -1,0 +1,35 @@
+name: Test Google Sheet integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post synthetic result to Apps Script
+        run: |
+          ID="260815-systemtest-${GITHUB_RUN_ID}"
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          cat > /tmp/payload.json <<EOF
+          {"submissionId":"$ID","testKey":"ai","testTitle":"AI Readiness","name":"SYSTEM TEST","contact":"","ageGroup":"","recommendedTest":"ai","surveySnapshot":{"self":80,"patterns":75,"agency":85,"ai":90},"surveyAnswers":[],"answers":[],"resultData":{"primaryTitle":"AI Builder","headline":"Integration test","scoreSummary":"test 100%","scores":{"workflow":5}},"utm":{"source":"github-actions-test"}}
+          EOF
+          curl -fsSL -X POST -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/payload.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/post.txt
+          cat /tmp/post.txt
+      - name: Verify saved result through JSONP API
+        run: |
+          sleep 2
+          curl -fsSL "https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec?action=getResult&id=${ID}&callback=cb" | tee /tmp/get.txt
+          grep -q "$ID" /tmp/get.txt
+      - name: Verify GitHub Pages contains backend bridge
+        run: |
+          for i in 1 2 3 4 5; do
+            HTML=$(curl -fsSL 'https://hadinhfriends-a11y.github.io/ai-healing-webgame/' || true)
+            echo "$HTML" | grep -q 'api-bridge.js?v=2' && exit 0
+            sleep 10
+          done
+          exit 1
