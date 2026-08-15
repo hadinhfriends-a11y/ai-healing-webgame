@@ -1,0 +1,32 @@
+name: Publish packaged web game
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract web game
+        run: |
+          tar -xzf bootstrap/pages.tgz
+          cp preview.html index.html
+          touch .nojekyll
+          rm -rf bootstrap
+
+      - name: Commit published files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish AI healing web game" || exit 0
+          git push
