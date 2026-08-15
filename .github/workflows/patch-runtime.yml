@@ -1,0 +1,84 @@
+name: Patch GitHub Pages runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace preview storage shim with Apps Script API shim
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          new_block = r'''<script src="./config.js"></script>
+<script>
+(function(){
+  const cfg=window.AI_INNER_LAB_CONFIG||{};
+  const api=String(cfg.scriptUrl||'').trim();
+  const run={
+    _ok:null,_fail:null,
+    withSuccessHandler(fn){this._ok=fn;return this},
+    withFailureHandler(fn){this._fail=fn;return this},
+    saveResult(payload){
+      const ok=this._ok,fail=this._fail;
+      try{
+        if(!api) throw new Error('Google Sheet chưa được kết nối. Vui lòng thử lại sau.');
+        const id='AI-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+        payload=Object.assign({},payload,{submissionId:id});
+        const base=location.href.split('?')[0];
+        const resultUrl=base+'?result='+encodeURIComponent(id);
+        fetch(api,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
+          .then(()=>{setTimeout(()=>ok&&ok({ok:true,id,resultUrl}),300)})
+          .catch(err=>fail&&fail(err));
+      }catch(err){fail&&fail(err)}
+    },
+    getResult(id){
+      const ok=this._ok,fail=this._fail;
+      try{
+        if(!api) throw new Error('Google Sheet chưa được kết nối.');
+        const cb='__aiInnerLab_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+        const s=document.createElement('script');
+        let done=false;
+        const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};s.remove()};
+        const timer=setTimeout(()=>{cleanup();fail&&fail(new Error('Không tải được kết quả.'))},10000);
+        window[cb]=data=>{clearTimeout(timer);cleanup();ok&&ok(data)};
+        s.onerror=()=>{clearTimeout(timer);cleanup();fail&&fail(new Error('Không kết nối được Google Sheet.'))};
+        s.src=api+'?action=getResult&id='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+        document.head.appendChild(s);
+      }catch(err){fail&&fail(err)}
+    }
+  };
+  window.google={script:{run}};
+  const id=new URLSearchParams(location.search).get('result');
+  if(id){setTimeout(()=>loadShared(id),50)}
+})();
+</script>'''
+
+          pattern=re.compile(r'<script>\s*\(function\(\)\{\s*const storeKey=\'aiInnerLabPreviewResults\';.*?\}\)\(\);\s*</script>',re.S)
+          for name in ('index.html','preview.html'):
+            p=Path(name)
+            text=p.read_text(encoding='utf-8')
+            out,n=pattern.subn(new_block,text,count=1)
+            if n!=1:
+              raise SystemExit(f'Could not patch {name}; matched {n} blocks')
+            p.write_text(out,encoding='utf-8')
+          PY
+      - name: Commit runtime patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html preview.html
+          git commit -m "Connect Pages runtime to Apps Script API" || exit 0
+          git push
