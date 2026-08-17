@@ -19,8 +19,8 @@
       const q=new URLSearchParams(params||{}); q.set('callback',cb); q.set('_t',Date.now());
       const sc=document.createElement('script');
       let done=false;
-      const timer=setTimeout(()=>finish(reject,new Error('Máy chủ phản hồi quá lâu.')),timeoutMs||8000);
       const finish=(fn,val)=>{ if(done)return; done=true; clearTimeout(timer); try{delete window[cb]}catch(e){}; sc.remove(); fn(val); };
+      const timer=setTimeout(()=>finish(reject,new Error('Máy chủ phản hồi quá lâu.')),timeoutMs||8000);
       window[cb]=(data)=>finish(resolve,data);
       sc.onerror=()=>finish(reject,new Error('Không thể kết nối máy chủ kết quả.'));
       sc.src=BACKEND+'?'+q.toString();
@@ -30,29 +30,53 @@
 
   async function verify(id){
     let lastErr=null;
-    for(let i=0;i<16;i++){
+    for(let i=0;i<18;i++){
       try{
         const data=await jsonp({action:'getResult',id},6000);
         if(data&&data.id) return data;
       }catch(e){lastErr=e}
-      await new Promise(r=>setTimeout(r,650+i*120));
+      await new Promise(r=>setTimeout(r,650+i*140));
     }
     throw lastErr||new Error('Chưa xác nhận được dữ liệu trong Google Sheet.');
   }
 
-  async function postPayload(payload){
-    const text=JSON.stringify(payload);
-    await fetch(BACKEND,{
-      method:'POST',
-      mode:'no-cors',
-      cache:'no-store',
-      credentials:'omit',
-      redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=UTF-8'},
-      body:text,
-      keepalive:true
+  function postPayload(payload){
+    return new Promise((resolve,reject)=>{
+      const frameName='aiInnerPost_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const iframe=document.createElement('iframe');
+      iframe.name=frameName;
+      iframe.style.display='none';
+      iframe.setAttribute('aria-hidden','true');
+
+      const form=document.createElement('form');
+      form.method='POST';
+      form.action=BACKEND;
+      form.target=frameName;
+      form.enctype='application/x-www-form-urlencoded';
+      form.style.display='none';
+
+      const input=document.createElement('input');
+      input.type='hidden';
+      input.name='payload';
+      input.value=JSON.stringify(payload);
+      form.appendChild(input);
+
+      let submitted=false;
+      const cleanup=()=>{ setTimeout(()=>{ try{form.remove();iframe.remove();}catch(e){} },1500); };
+      const timer=setTimeout(()=>{ cleanup(); reject(new Error('Không gửi được dữ liệu tới máy chủ.')); },10000);
+      iframe.onload=()=>{
+        if(!submitted) return;
+        clearTimeout(timer);
+        cleanup();
+        resolve(true);
+      };
+
+      document.body.appendChild(iframe);
+      document.body.appendChild(form);
+      submitted=true;
+      try{ form.submit(); }
+      catch(e){ clearTimeout(timer); cleanup(); reject(e); }
     });
-    return true;
   }
 
   function runner(){
@@ -81,5 +105,5 @@
 
   window.google={script:{get run(){return runner()}}};
   window.AI_INNER_BACKEND_URL=BACKEND;
-  console.info('AI INNER LAB backend connected (fetch bridge v3)');
+  console.info('AI INNER LAB backend connected (form bridge v4)');
 })();
