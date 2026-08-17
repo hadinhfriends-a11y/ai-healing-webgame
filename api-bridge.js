@@ -16,39 +16,43 @@
   function jsonp(params, timeoutMs){
     return new Promise((resolve,reject)=>{
       const cb='__aiInnerCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-      const q=new URLSearchParams(params||{}); q.set('callback',cb);
+      const q=new URLSearchParams(params||{}); q.set('callback',cb); q.set('_t',Date.now());
       const sc=document.createElement('script');
       let done=false;
+      const timer=setTimeout(()=>finish(reject,new Error('Máy chủ phản hồi quá lâu.')),timeoutMs||8000);
       const finish=(fn,val)=>{ if(done)return; done=true; clearTimeout(timer); try{delete window[cb]}catch(e){}; sc.remove(); fn(val); };
       window[cb]=(data)=>finish(resolve,data);
       sc.onerror=()=>finish(reject,new Error('Không thể kết nối máy chủ kết quả.'));
       sc.src=BACKEND+'?'+q.toString();
       document.head.appendChild(sc);
-      const timer=setTimeout(()=>finish(reject,new Error('Máy chủ phản hồi quá lâu.')),timeoutMs||8000);
     });
   }
 
   async function verify(id){
     let lastErr=null;
-    for(let i=0;i<10;i++){
+    for(let i=0;i<16;i++){
       try{
-        const data=await jsonp({action:'getResult',id},5000);
+        const data=await jsonp({action:'getResult',id},6000);
         if(data&&data.id) return data;
       }catch(e){lastErr=e}
-      await new Promise(r=>setTimeout(r,450+i*120));
+      await new Promise(r=>setTimeout(r,650+i*120));
     }
     throw lastErr||new Error('Chưa xác nhận được dữ liệu trong Google Sheet.');
   }
 
-  function postPayload(payload){
+  async function postPayload(payload){
     const text=JSON.stringify(payload);
-    try{
-      if(navigator.sendBeacon){
-        const ok=navigator.sendBeacon(BACKEND,new Blob([text],{type:'text/plain;charset=UTF-8'}));
-        if(ok) return Promise.resolve(true);
-      }
-    }catch(e){}
-    return fetch(BACKEND,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:text,keepalive:true}).then(()=>true);
+    await fetch(BACKEND,{
+      method:'POST',
+      mode:'no-cors',
+      cache:'no-store',
+      credentials:'omit',
+      redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=UTF-8'},
+      body:text,
+      keepalive:true
+    });
+    return true;
   }
 
   function runner(){
@@ -62,14 +66,14 @@
           const id=makeId();
           payload=Object.assign({},payload,{submissionId:id});
           await postPayload(payload);
-          const saved=await verify(id);
+          await verify(id);
           const resultUrl=PUBLIC_APP+'?result='+encodeURIComponent(id);
           ok&&ok({ok:true,id,resultUrl});
         }catch(e){fail&&fail(e)}
       },
       async getResult(id){
         const ok=this._ok, fail=this._fail;
-        try{ const data=await jsonp({action:'getResult',id},8000); ok&&ok(data||null); }
+        try{ const data=await jsonp({action:'getResult',id},9000); ok&&ok(data||null); }
         catch(e){ fail&&fail(e); }
       }
     };
@@ -77,5 +81,5 @@
 
   window.google={script:{get run(){return runner()}}};
   window.AI_INNER_BACKEND_URL=BACKEND;
-  console.info('AI INNER LAB backend connected');
+  console.info('AI INNER LAB backend connected (fetch bridge v3)');
 })();
