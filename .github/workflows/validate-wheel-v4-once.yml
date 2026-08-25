@@ -1,0 +1,21 @@
+name: Validate Lucky Wheel v4 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-wheel-v4-once.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check wheel JavaScript syntax
+        run: node --check wheel-fix.js
+      - name: Check Apps Script syntax as JavaScript
+        run: |
+          cp Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
+      - name: Confirm v4 is loaded
+        run: grep -q 'wheel-fix.js?v=4' index.html
