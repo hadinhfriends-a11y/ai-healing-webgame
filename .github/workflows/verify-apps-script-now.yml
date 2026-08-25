@@ -23,7 +23,7 @@ jobs:
           cat > /tmp/payload.json <<EOF
           {"submissionId":"$ID","testKey":"ai","testTitle":"AI Readiness","name":"CHATGPT LIVE VERIFY","contact":"","ageGroup":"","recommendedTest":"ai","surveySnapshot":{"self":80,"patterns":80,"agency":80,"ai":80},"surveyAnswers":[],"answers":[],"resultData":{"primaryTitle":"AI Builder","headline":"Live verification","scoreSummary":"verify 100%","scores":{"workflow":5}},"utm":{"source":"chatgpt-liveverify"}}
           EOF
-          curl -fLsS -X POST -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/payload.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' | tee /tmp/post.txt
+          curl -fLsS -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/payload.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' | tee /tmp/post.txt
           grep -q '"ok":true' /tmp/post.txt
       - name: Verify saved result
         run: |
