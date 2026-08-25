@@ -6,6 +6,7 @@ on:
     paths:
       - 'api-bridge.js'
       - 'upgrade-v2.js'
+      - 'wheel-fix.js'
       - '.github/workflows/inject-api-bridge.yml'
   workflow_dispatch:
 
@@ -30,7 +31,8 @@ jobs:
           if '<script src="api-bridge.js?v=6"></script>' not in s:
               s=s.replace('</body>','<script src="api-bridge.js?v=6"></script>\n</body>')
           s=re.sub(r'\n?<script src="upgrade-v2\.js\?v=\d+"></script>','',s)
-          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>')
+          s=re.sub(r'\n?<script src="wheel-fix\.js\?v=\d+"></script>','',s)
+          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="wheel-fix.js?v=1"></script>')
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit patched index
@@ -38,5 +40,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Use bridge v6 and assessment V2" || exit 0
+          git commit -m "Load Lucky Wheel motion fix" || exit 0
           git push
