@@ -1,0 +1,17 @@
+name: Validate Gift Box v5 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-gift-v5-once.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check gift JavaScript syntax
+        run: node --check wheel-fix.js
+      - name: Confirm v5 is loaded
+        run: grep -q 'wheel-fix.js?v=5' index.html
