@@ -1,0 +1,23 @@
+name: Validate V2 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-v2-once.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: |
+          node --check upgrade-v2.js
+          node --check api-bridge.js
+          cp Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
+      - name: Check production script tags
+        run: |
+          grep -q 'api-bridge.js?v=6' index.html
+          grep -q 'upgrade-v2.js?v=1' index.html
