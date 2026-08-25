@@ -1,9 +1,12 @@
 /* AI INNER LAB — Lucky Wheel motion fix */
 (function(){
+  function hasState(){ return typeof state!=='undefined'&&state; }
+
   function currentSubmissionId(){
-    if(window.state&&state.submissionId) return state.submissionId;
+    if(hasState()&&state.submissionId) return state.submissionId;
     try{
-      const u=new URL((window.state&&state.shareUrl)||location.href,location.href);
+      const base=(hasState()&&state.shareUrl)?state.shareUrl:location.href;
+      const u=new URL(base,location.href);
       return u.searchParams.get('result')||'';
     }catch(e){ return ''; }
   }
@@ -12,8 +15,15 @@
     try{
       const t=getComputedStyle(el).transform;
       if(!t||t==='none') return 0;
-      const m=new DOMMatrixReadOnly(t);
-      let deg=Math.atan2(m.b,m.a)*180/Math.PI;
+      let a=0,b=0;
+      if(typeof DOMMatrixReadOnly!=='undefined'){
+        const m=new DOMMatrixReadOnly(t); a=m.a; b=m.b;
+      }else{
+        const m=t.match(/matrix\(([^)]+)\)/);
+        if(!m) return 0;
+        const v=m[1].split(',').map(Number); a=v[0]; b=v[1];
+      }
+      let deg=Math.atan2(b,a)*180/Math.PI;
       if(deg<0) deg+=360;
       return deg;
     }catch(e){ return 0; }
@@ -31,14 +41,14 @@
   window.spinWheel=function(){
     const id=currentSubmissionId();
     const input=document.getElementById('wheelContact');
-    const contact=(input?input.value.trim():(window.state&&state.profile&&state.profile.contact)||'');
+    const contact=input?input.value.trim():((hasState()&&state.profile&&state.profile.contact)||'');
     if(!id){ alert('Không tìm thấy Submission ID. Vui lòng lưu kết quả trước khi quay.'); return; }
     if(!contact){
       alert('Vui lòng nhập Zalo hoặc SĐT để nhận quà.');
       if(input) input.focus();
       return;
     }
-    if(window.state&&state.profile) state.profile.contact=contact;
+    if(hasState()&&state.profile) state.profile.contact=contact;
 
     const wheel=document.getElementById('luckyWheel');
     const btn=document.getElementById('spinBtn');
@@ -48,7 +58,6 @@
     if(btn){ btn.disabled=true; btn.textContent='ĐANG QUAY…'; }
     if(status) status.textContent='Đang mở phần quà dành cho bạn…';
 
-    // Start moving immediately so the interaction never feels frozen.
     wheel.classList.remove('ai-wheel-settling');
     wheel.style.transition='none';
     wheel.style.transform='rotate(0deg)';
@@ -57,10 +66,8 @@
 
     google.script.run
       .withSuccessHandler(function(p){
-        if(window.state) state.prize=p;
+        if(hasState()) state.prize=p;
 
-        // Capture the visible rotation, stop the infinite spin at exactly that point,
-        // then ease through several more turns to the server-selected prize.
         const start=freezeWheel(wheel);
         const centers={voucher:162,expert_session:340.2,coaching_month:358.2};
         const center=centers[p.prizeKey]!==undefined?centers[p.prizeKey]:162;
@@ -69,7 +76,7 @@
         const delta=(desired-startNorm+360)%360;
         const finalAngle=start+(6*360)+delta;
 
-        if(status) status.textContent='Phần quà đã được khóa · đang dừng vòng quay…';
+        if(status) status.textContent='Phần quà đã được khóa · vòng quay đang chậm dần…';
         requestAnimationFrame(function(){
           requestAnimationFrame(function(){
             wheel.classList.add('ai-wheel-settling');
@@ -107,8 +114,7 @@
       will-change:transform;
     }
     .wheel-pointer{filter:drop-shadow(0 3px 8px rgba(0,0,0,.5));}
-    .lucky-wheel.ai-wheel-spinning + .wheel-center{pointer-events:none}
   `;
   document.head.appendChild(style);
-  console.info('AI INNER LAB Lucky Wheel motion fix loaded');
+  console.info('AI INNER LAB Lucky Wheel motion fix v2 loaded');
 })();
