@@ -15,11 +15,11 @@ const HEADERS=[
 ];
 
 const TEST_TITLES=Object.freeze({enneagram:'Enneagram Mini',direction:'Life Direction',career:'Career DNA',attachment:'Attachment Style',ai:'AI Readiness'});
-const PRIZES=Object.freeze([
-  {key:'voucher',title:'Voucher khóa học trị giá 1.000.000đ',weight:90},
-  {key:'expert_session',title:'01 buổi giải thích kết quả với chuyên gia tâm lý',weight:9},
-  {key:'coaching_month',title:'01 tháng Coaching phát triển bản thân 1:1',weight:1}
-]);
+const PRIZES=Object.freeze({
+  voucher:{key:'voucher',title:'Voucher khóa học trị giá 1.000.000đ'},
+  expert_session:{key:'expert_session',title:'01 buổi giải thích kết quả với chuyên gia tâm lý'},
+  coaching_month:{key:'coaching_month',title:'01 tháng Coaching phát triển bản thân 1:1'}
+});
 
 function doGet(e){
   const p=(e&&e.parameter)||{};
@@ -82,12 +82,15 @@ function drawPrize(payload){
   try{
     const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả để quay quà.');
     const row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
-    if(row[17]) return Object.assign({ok:true},prizeFromRow_(row));
     const contact=cleanText_(payload.contact,120);if(contact&&!row[3])sheet.getRange(rowNum,4).setValue(contact);
-    const prize=pickPrize_();
-    sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
+    const prize=prizeForId_(id);
+    // During pre-launch testing, always sync the row to the deterministic prize so UI and Sheet cannot disagree.
+    const claimed=String(row[20]||'')==='Đã xác nhận'?'Đã xác nhận':'Chưa xác nhận';
+    const claimTime=claimed==='Đã xác nhận'?(row[21]||new Date()):'';
+    const spinTime=row[19]||new Date();
+    sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,spinTime,claimed,claimTime]]);
     SpreadsheetApp.flush();
-    return {ok:true,submissionId:id,prizeKey:prize.key,prizeTitle:prize.title,claimed:false};
+    return {ok:true,submissionId:id,prizeKey:prize.key,prizeTitle:prize.title,claimed:claimed==='Đã xác nhận'};
   }finally{lock.releaseLock()}
 }
 
@@ -104,7 +107,12 @@ function claimPrize(payload){
   const sheet=getSheet_();ensureHeaders_(sheet);const lock=LockService.getScriptLock();lock.waitLock(15000);
   try{
     const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả.');
-    const row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];if(!row[17])throw new Error('Chưa có phần quà để xác nhận.');
+    let row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
+    if(!row[17]){
+      const prize=prizeForId_(id);
+      sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
+      row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
+    }
     const contact=cleanText_(payload.contact,120);if(contact&&!row[3])sheet.getRange(rowNum,4).setValue(contact);
     if(String(row[20]||'')!=='Đã xác nhận')sheet.getRange(rowNum,21,1,2).setValues([['Đã xác nhận',new Date()]]);
     SpreadsheetApp.flush();
@@ -112,7 +120,21 @@ function claimPrize(payload){
   }finally{lock.releaseLock()}
 }
 
-function pickPrize_(){const total=PRIZES.reduce((s,p)=>s+p.weight,0),r=Math.random()*total;let acc=0;for(let i=0;i<PRIZES.length;i++){acc+=PRIZES[i].weight;if(r<acc)return PRIZES[i]}return PRIZES[0]}
+function hash32_(s){
+  let h=2166136261>>>0;
+  for(let i=0;i<s.length;i++){
+    h=(h^s.charCodeAt(i))>>>0;
+    // Math.imul exists in V8 Apps Script and matches browser JS 32-bit multiplication.
+    h=Math.imul(h,16777619)>>>0;
+  }
+  return h>>>0;
+}
+function prizeForId_(id){
+  const n=hash32_(String(id))%10000;
+  if(n<9000)return PRIZES.voucher;
+  if(n<9900)return PRIZES.expert_session;
+  return PRIZES.coaching_month;
+}
 function prizeFromRow_(row){if(!row||!row[17])return null;return {submissionId:row[1],prizeKey:row[17],prizeTitle:row[18],spinTime:row[19]||'',claimed:String(row[20]||'')==='Đã xác nhận',claimTime:row[21]||''}}
 function findRowById_(sheet,id){const last=sheet.getLastRow();if(last<2)return 0;const found=sheet.getRange(2,2,last-1,1).createTextFinder(id).matchEntireCell(true).findNext();return found?found.getRow():0}
 function ensureHeaders_(sheet){const current=sheet.getRange(1,1,1,HEADERS.length).getValues()[0];if(HEADERS.some((v,i)=>current[i]!==v))sheet.getRange(1,1,1,HEADERS.length).setValues([HEADERS]);sheet.setFrozenRows(1)}
