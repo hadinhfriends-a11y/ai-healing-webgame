@@ -11,7 +11,7 @@ const HEADERS=[
   'Kết quả mini test','Điểm số / Top results','Link kết quả riêng',
   'Câu trả lời khảo sát JSON','Câu trả lời mini test JSON','Result JSON',
   'Nguồn / UTM','Đã bấm xem khóa học?',
-  'Prize Key','Phần quà Lucky Wheel','Thời gian quay','Đã nhận quà?','Thời gian nhận quà'
+  'Prize Key','Phần quà bí mật','Thời gian quay','Đã nhận quà?','Thời gian nhận quà'
 ];
 
 const TEST_TITLES=Object.freeze({enneagram:'Enneagram Mini',direction:'Life Direction',career:'Career DNA',attachment:'Attachment Style',ai:'AI Readiness'});
@@ -80,17 +80,15 @@ function drawPrize(payload){
   const id=cleanText_(payload&&payload.submissionId,80);if(!id)throw new Error('Thiếu Submission ID.');
   const sheet=getSheet_();ensureHeaders_(sheet);const lock=LockService.getScriptLock();lock.waitLock(15000);
   try{
-    const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả để quay quà.');
+    const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả để mở quà.');
     const row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
     const contact=cleanText_(payload.contact,120);if(contact&&!row[3])sheet.getRange(rowNum,4).setValue(contact);
-    const prize=prizeForId_(id);
-    // During pre-launch testing, always sync the row to the deterministic prize so UI and Sheet cannot disagree.
-    const claimed=String(row[20]||'')==='Đã xác nhận'?'Đã xác nhận':'Chưa xác nhận';
-    const claimTime=claimed==='Đã xác nhận'?(row[21]||new Date()):'';
-    const spinTime=row[19]||new Date();
-    sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,spinTime,claimed,claimTime]]);
+    const existing=prizeFromRow_(row);
+    if(existing) return Object.assign({ok:true,submissionId:id},existing);
+    const prize=prizeFromPayloadOrRandom_(payload);
+    sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
     SpreadsheetApp.flush();
-    return {ok:true,submissionId:id,prizeKey:prize.key,prizeTitle:prize.title,claimed:claimed==='Đã xác nhận'};
+    return {ok:true,submissionId:id,prizeKey:prize.key,prizeTitle:prize.title,claimed:false};
   }finally{lock.releaseLock()}
 }
 
@@ -109,7 +107,7 @@ function claimPrize(payload){
     const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả.');
     let row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
     if(!row[17]){
-      const prize=prizeForId_(id);
+      const prize=prizeFromPayloadOrRandom_(payload);
       sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
       row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
     }
@@ -120,19 +118,15 @@ function claimPrize(payload){
   }finally{lock.releaseLock()}
 }
 
-function hash32_(s){
-  let h=2166136261>>>0;
-  for(let i=0;i<s.length;i++){
-    h=(h^s.charCodeAt(i))>>>0;
-    // Math.imul exists in V8 Apps Script and matches browser JS 32-bit multiplication.
-    h=Math.imul(h,16777619)>>>0;
-  }
-  return h>>>0;
+function prizeFromPayloadOrRandom_(payload){
+  const requested=cleanText_(payload&&payload.prizeKey,40);
+  if(requested&&PRIZES[requested]) return PRIZES[requested];
+  return randomPrize_();
 }
-function prizeForId_(id){
-  const n=hash32_(String(id))%10000;
-  if(n<9000)return PRIZES.voucher;
-  if(n<9900)return PRIZES.expert_session;
+function randomPrize_(){
+  const n=Math.random()*100;
+  if(n<82) return PRIZES.voucher;
+  if(n<97) return PRIZES.expert_session;
   return PRIZES.coaching_month;
 }
 function prizeFromRow_(row){if(!row||!row[17])return null;return {submissionId:row[1],prizeKey:row[17],prizeTitle:row[18],spinTime:row[19]||'',claimed:String(row[20]||'')==='Đã xác nhận',claimTime:row[21]||''}}
