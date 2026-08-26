@@ -27,10 +27,29 @@
     });
     const out={};dims.forEach(d=>out[d]=counts[d]?sums[d]/counts[d]:0);return out;
   }
-  function ranked(s){return Object.entries(s).sort((a,b)=>b[1]-a[1])}
+  function ranked(s){return Object.entries(s||{}).sort((a,b)=>b[1]-a[1])}
   function tiedCandidates(s,tolerance){
     const r=ranked(s);if(!r.length)return[];const top=r[0][1];
     return r.filter(x=>top-x[1]<=tolerance).map(x=>x[0]);
+  }
+  function normalizeTieResult(r){
+    if(!r||!r.scores)return r;
+    const list=ranked(r.scores),top=list[0]?.[1]??0;
+    const ties=list.filter(x=>top-x[1]<=0.20).map(x=>x[0]);
+    if(ties.length>1){
+      r.tieKeys=ties;
+      r.primaryTitle='Nhóm nổi bật: '+ties.map(k=>'Type '+k).join(' · ');
+      r.description='Các Type '+ties.join(', ')+' đang có mức điểm gần như không thể phân biệt bằng bài test ngắn này. Kết quả trung thực nhất lúc này là giữ nhiều giả thuyết thay vì ép bạn vào một Type duy nhất.';
+      r.strength='Bạn đang thể hiện đồng thời nhiều động lực nổi bật: '+ties.map(k=>TESTS.enneagram.labels[k]).join(' · ')+'.';
+      r.blindSpot='Chốt một nhãn quá sớm có thể khiến bạn diễn giải bản thân theo kết quả thay vì quan sát động lực thật phía sau hành vi.';
+      r.nextStep='Trong 7 ngày tới, khi phản ứng mạnh, hãy hỏi: “Điều mình đang cố bảo vệ là được cần đến, quyền tự chủ, hay sự yên ổn?” Động lực lặp lại thường phân biệt Type tốt hơn một hành vi đơn lẻ.';
+      r.tags=ties.map(k=>'Type '+k);
+      r.confidence='Chưa đủ để chốt 1 Type';
+      r.confidenceNote='Các Type dẫn đầu vẫn đang đồng điểm hoặc quá sát sau câu làm rõ.';
+    }else{
+      r.tieKeys=[];
+    }
+    return r;
   }
 
   answerTest=function(v){
@@ -57,23 +76,8 @@
 
   computeResult=function(){
     const r=BASE_COMPUTE();
-    if(state.testKey!=='enneagram'||!r||!r.scores)return r;
-    const list=ranked(r.scores),top=list[0]?.[1]??0;
-    const ties=list.filter(x=>top-x[1]<=0.20).map(x=>x[0]);
-    if(ties.length>1){
-      r.tieKeys=ties;
-      r.primaryTitle='Nhóm nổi bật: '+ties.map(k=>'Type '+k).join(' · ');
-      r.description='Các Type '+ties.join(', ')+' đang có mức điểm gần như không thể phân biệt bằng bài test ngắn này. Kết quả trung thực nhất lúc này là giữ nhiều giả thuyết thay vì ép bạn vào một Type duy nhất.';
-      r.strength='Bạn đang thể hiện đồng thời nhiều động lực nổi bật: '+ties.map(k=>TESTS.enneagram.labels[k]).join(' · ')+'.';
-      r.blindSpot='Chốt một nhãn quá sớm có thể khiến bạn diễn giải bản thân theo kết quả thay vì quan sát động lực thật phía sau hành vi.';
-      r.nextStep='Trong 7 ngày tới, khi phản ứng mạnh, hãy hỏi: “Điều mình đang cố bảo vệ là được cần đến, quyền tự chủ, hay sự yên ổn?” Động lực lặp lại thường phân biệt Type tốt hơn một hành vi đơn lẻ.';
-      r.tags=ties.map(k=>'Type '+k);
-      r.confidence='Chưa đủ để chốt 1 Type';
-      r.confidenceNote='Các Type dẫn đầu vẫn đang đồng điểm hoặc quá sát sau câu làm rõ.';
-    }else{
-      r.tieKeys=[];
-    }
-    return r;
+    if(state.testKey!=='enneagram')return r;
+    return normalizeTieResult(r);
   };
 
   function patchTieCard(shared){
@@ -89,6 +93,14 @@
     if(desc)desc.textContent=r.description||'';
   }
 
-  renderResult=function(shared){BASE_RENDER(shared);setTimeout(()=>patchTieCard(shared),0)};
+  renderResult=function(shared){
+    const k=(shared&&shared.testKey)||state.testKey;
+    if(k==='enneagram'){
+      if(shared&&shared.resultData)normalizeTieResult(shared.resultData);
+      else if(state.result)normalizeTieResult(state.result);
+    }
+    BASE_RENDER(shared);
+    setTimeout(()=>patchTieCard(shared),0)
+  };
   console.info('AI INNER LAB Enneagram tie-safe scoring loaded');
 })();
