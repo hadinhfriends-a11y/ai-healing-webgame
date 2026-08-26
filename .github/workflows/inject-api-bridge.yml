@@ -9,6 +9,7 @@ on:
       - 'enneagram-tie-fix.js'
       - 'wheel-fix.js'
       - 'gift-v6.js'
+      - 'gift-layout-fix.js'
       - '.github/workflows/inject-api-bridge.yml'
   workflow_dispatch:
 
@@ -36,7 +37,8 @@ jobs:
           s=re.sub(r'\n?<script src="enneagram-tie-fix\.js\?v=\d+"></script>','',s)
           s=re.sub(r'\n?<script src="wheel-fix\.js\?v=\d+"></script>','',s)
           s=re.sub(r'\n?<script src="gift-v6\.js\?v=\d+"></script>','',s)
-          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>')
+          s=re.sub(r'\n?<script src="gift-layout-fix\.js\?v=\d+"></script>','',s)
+          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>\n<script src="gift-layout-fix.js?v=1"></script>')
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit patched index
@@ -44,5 +46,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Load smooth Mystery Gift v6.3" || exit 0
+          git commit -m "Load gift layout fix v1" || exit 0
           git push
