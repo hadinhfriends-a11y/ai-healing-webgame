@@ -1,0 +1,39 @@
+name: Test Gift Backend Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-gift-backend-once.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save test result
+        run: |
+          set -euo pipefail
+          ID="260826-gift-debug-${GITHUB_RUN_ID}"
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          cat > /tmp/result.json <<EOF
+          {"submissionId":"$ID","testKey":"ai","recommendedTest":"ai","name":"CHATGPT GIFT DEBUG","contact":"0000000000","ageGroup":"","surveySnapshot":{"self":70,"patterns":70,"agency":70,"ai":70},"surveyAnswers":[],"answers":[],"resultData":{"primaryTitle":"Debug","scoreSummary":"debug"},"utm":{"source":"gift-debug"}}
+          EOF
+          curl -fsS -X POST -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/result.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/save.txt
+          cat /tmp/save.txt
+          grep -q '"ok":true' /tmp/save.txt
+      - name: Draw expert gift
+        run: |
+          set -euo pipefail
+          cat > /tmp/gift.json <<EOF
+          {"action":"drawPrize","submissionId":"$ID","contact":"0000000000","boxNo":2,"prizeKey":"expert_session"}
+          EOF
+          curl -fsS -X POST -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/gift.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/gift.txt
+          cat /tmp/gift.txt
+          grep -q '"prizeKey":"expert_session"' /tmp/gift.txt
+      - name: Verify prize endpoint
+        run: |
+          set -euo pipefail
+          sleep 2
+          curl -fsSL "https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec?action=getPrize&id=${ID}" > /tmp/get.txt
+          cat /tmp/get.txt
+          grep -q '"prizeKey":"expert_session"' /tmp/get.txt
