@@ -39,14 +39,18 @@ function doPost(e){
     if(!payload&&e&&e.parameter&&e.parameter.payload) payload=JSON.parse(e.parameter.payload);
     if(!payload) throw new Error('Payload không hợp lệ.');
     const action=cleanText_(payload.action,40);
-    let result;
-    if(action==='drawPrize') result=drawPrize(payload);
-    else if(action==='claimPrize') result=claimPrize(payload);
-    else result=saveResult(payload);
-    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    if(action==='drawPrize') return messageResponse_('ai-inner-prize',drawPrize(payload));
+    if(action==='claimPrize') return messageResponse_('ai-inner-claim',claimPrize(payload));
+    return ContentService.createTextOutput(JSON.stringify(saveResult(payload))).setMimeType(ContentService.MimeType.JSON);
   }catch(err){
-    return ContentService.createTextOutput(JSON.stringify({ok:false,error:String(err&&err.message||err)})).setMimeType(ContentService.MimeType.JSON);
+    const data={ok:false,error:String(err&&err.message||err)};
+    return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function messageResponse_(type,data){
+  const payload=JSON.stringify({type:type,payload:data}).replace(/</g,'\\u003c');
+  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>parent.postMessage('+payload+',"https://hadinhfriends-a11y.github.io");</script>');
 }
 
 function saveResult(payload){
@@ -85,7 +89,7 @@ function drawPrize(payload){
     const contact=cleanText_(payload.contact,120);if(contact&&!row[3])sheet.getRange(rowNum,4).setValue(contact);
     const existing=prizeFromRow_(row);
     if(existing) return Object.assign({ok:true,submissionId:id},existing);
-    const prize=prizeFromPayloadOrRandom_(payload);
+    const prize=randomPrize_();
     sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
     SpreadsheetApp.flush();
     return {ok:true,submissionId:id,prizeKey:prize.key,prizeTitle:prize.title,claimed:false};
@@ -107,7 +111,7 @@ function claimPrize(payload){
     const rowNum=findRowById_(sheet,id);if(!rowNum)throw new Error('Không tìm thấy kết quả.');
     let row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
     if(!row[17]){
-      const prize=prizeFromPayloadOrRandom_(payload);
+      const prize=randomPrize_();
       sheet.getRange(rowNum,18,1,5).setValues([[prize.key,prize.title,new Date(),'Chưa xác nhận','']]);
       row=sheet.getRange(rowNum,1,1,HEADERS.length).getValues()[0];
     }
@@ -118,11 +122,6 @@ function claimPrize(payload){
   }finally{lock.releaseLock()}
 }
 
-function prizeFromPayloadOrRandom_(payload){
-  const requested=cleanText_(payload&&payload.prizeKey,40);
-  if(requested&&PRIZES[requested]) return PRIZES[requested];
-  return randomPrize_();
-}
 function randomPrize_(){
   const n=Math.random()*100;
   if(n<82) return PRIZES.voucher;
