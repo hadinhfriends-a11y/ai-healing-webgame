@@ -1,4 +1,4 @@
-/* AI INNER LAB — Mystery Gift v6.1: server-random prize, hidden options */
+/* AI INNER LAB — Mystery Gift v6.2: server-random prize, ~5s reveal */
 (function(){
   const STORE='ai-inner-server-prize:';
   function hasState(){return typeof state!=='undefined'&&state}
@@ -32,14 +32,6 @@
     show(`<section class="content-pad gift-screen"><div class="gift-shell glass"><div class="gift-copy"><span class="kicker">🎁 HỘP QUÀ BÍ MẬT</span><h2>Chọn một hộp.<br><span class="grad-text">Mở điều bất ngờ.</span></h2><p class="lead">Bạn đã hoàn thành bài test. Một phần quà bí mật đang chờ bạn — hãy chọn chiếc hộp khiến bạn muốn mở nhất.</p><div class="field gift-contact"><label>Zalo / SĐT để nhận quà</label><input id="giftContact" value="${esc(contact)}" placeholder="Nhập Zalo hoặc số điện thoại"></div><div class="gift-rule">✦ Mỗi Submission ID chỉ mở một lần.</div></div><div class="gift-stage"><div class="stage-glow"></div><div class="gift-instruction">CHỌN 1 TRONG 3 HỘP QUÀ</div><div class="gift-grid">${box(1)}${box(2)}${box(3)}</div><div class="gift-status" id="giftStatus">Biết đâu hộp bạn chọn là món quà đặc biệt ✦</div></div></div></section>`)
   };
 
-  function finishReveal(prize,chosen,status){
-    const id=currentId();
-    saveLocal(id,prize);if(hasState())state.prize=prize;
-    if(status)status.textContent='3 · 2 · 1 · MỞ QUÀ!';
-    setTimeout(()=>{if(chosen)chosen.classList.add('opened');document.body.classList.add('gift-flash');setTimeout(()=>document.body.classList.remove('gift-flash'),650)},550);
-    setTimeout(()=>{if(typeof renderGiftPrize==='function')renderGiftPrize(prize,false)},1250)
-  }
-
   window.openMysteryGift=function(boxNo){
     const id=currentId(),input=document.getElementById('giftContact');
     const contact=input?input.value.trim():((hasState()&&state.profile&&state.profile.contact)||'');
@@ -47,28 +39,44 @@
     if(!contact){alert('Vui lòng nhập Zalo hoặc SĐT để nhận quà.');if(input)input.focus();return}
     if(hasState()&&state.profile)state.profile.contact=contact;
     const prior=loadLocal(id);if(prior){if(hasState())state.prize=prior;if(typeof renderGiftPrize==='function')renderGiftPrize(prior,true);return}
+
+    const started=Date.now();
     const boxes=[...document.querySelectorAll('.mystery-gift')],chosen=boxes.find(b=>Number(b.dataset.box)===boxNo),status=document.getElementById('giftStatus');
     boxes.forEach(b=>{b.disabled=true;b.classList.add(Number(b.dataset.box)===boxNo?'chosen':'unchosen')});
     if(status)status.textContent='Hộp quà đang mở niêm phong…';
-    setTimeout(()=>{if(chosen)chosen.classList.add('shaking');if(status)status.textContent='Đang mở món quà dành cho bạn…'},280);
 
-    let done=false;
+    setTimeout(()=>{if(chosen)chosen.classList.add('shaking');if(status)status.textContent='Đang mở món quà dành cho bạn…'},180);
+    setTimeout(()=>{if(chosen){chosen.classList.remove('shaking');chosen.classList.add('opening')}if(status)status.textContent='3 · 2 · 1…'},1550);
+    setTimeout(()=>{if(chosen)chosen.classList.add('opened');document.body.classList.add('gift-flash');setTimeout(()=>document.body.classList.remove('gift-flash'),650);if(status)status.textContent='Sắp mở quà…'},3650);
+
+    let done=false,prize=null,revealTimer=null;
+    function revealWhenReady(p){
+      if(done||!p||!p.prizeKey)return;
+      done=true;prize=p;window.removeEventListener('message',listener);
+      saveLocal(id,p);if(hasState())state.prize=p;
+      const elapsed=Date.now()-started;
+      const wait=Math.max(0,4800-elapsed);
+      revealTimer=setTimeout(()=>{if(status)status.textContent='MỞ QUÀ!';if(typeof renderGiftPrize==='function')renderGiftPrize(prize,false)},wait);
+    }
+
     const listener=function(ev){
       if(ev.origin!=='https://script.googleusercontent.com'&&ev.origin!=='https://script.google.com')return;
       const d=ev.data;if(!d||d.type!=='ai-inner-prize'||!d.payload||d.payload.submissionId!==id)return;
-      if(done)return;done=true;window.removeEventListener('message',listener);
-      if(chosen){chosen.classList.remove('shaking');chosen.classList.add('opening')}
-      finishReveal(d.payload,chosen,status)
+      revealWhenReady(d.payload)
     };
     window.addEventListener('message',listener);
     postHidden({action:'drawPrize',submissionId:id,contact:contact,boxNo:boxNo});
 
-    setTimeout(()=>{
+    function pollPrize(){
       if(done)return;
       if(typeof google!=='undefined'&&google.script&&google.script.run){
-        google.script.run.withSuccessHandler(function(p){if(done||!p||!p.prizeKey)return;done=true;window.removeEventListener('message',listener);if(chosen){chosen.classList.remove('shaking');chosen.classList.add('opening')}finishReveal(p,chosen,status)}).withFailureHandler(function(){if(status)status.textContent='Kết nối chậm. Hãy thử lại sau vài giây.'}).getPrize(id)
+        google.script.run.withSuccessHandler(function(p){revealWhenReady(p)}).withFailureHandler(function(){}).getPrize(id)
       }
-    },6500)
+    }
+    setTimeout(pollPrize,2200);
+    setTimeout(pollPrize,3300);
+    setTimeout(pollPrize,4400);
+    setTimeout(()=>{if(!done&&status)status.textContent='Máy chủ đang chậm hơn bình thường, đang hoàn tất quà…'},5600);
   };
 
   const oldClaim=window.claimPrize;
@@ -78,9 +86,9 @@
     const b=document.getElementById('claimBtn');if(b){b.disabled=true;b.textContent='ĐANG XÁC NHẬN…'}
     postHidden({action:'claimPrize',submissionId:id,contact:(hasState()&&state.profile&&state.profile.contact)||''});
     p.claimed=true;p.claimTime=new Date().toISOString();saveLocal(id,p);if(hasState())state.prize=p;
-    setTimeout(()=>{if(typeof renderGiftPrize==='function')renderGiftPrize(p,true)},450)
+    setTimeout(()=>{if(typeof renderGiftPrize==='function')renderGiftPrize(p,true)},350)
   };
 
   const style=document.createElement('style');style.textContent='.gift-possible{display:none!important}';document.head.appendChild(style);
-  console.info('AI INNER LAB Mystery Gift v6.1 loaded');
+  console.info('AI INNER LAB Mystery Gift v6.2 loaded');
 })();
