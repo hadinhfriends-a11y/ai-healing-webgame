@@ -1,0 +1,59 @@
+name: Final Gift E2E Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/final-gift-e2e-once.yml'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save fresh result
+        run: |
+          set -euo pipefail
+          ID="260826-final-gift-${GITHUB_RUN_ID}"
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          cat > /tmp/result.json <<EOF
+          {"submissionId":"$ID","testKey":"ai","recommendedTest":"ai","name":"CHATGPT FINAL GIFT TEST","contact":"0000000000","ageGroup":"","surveySnapshot":{"self":72,"patterns":72,"agency":72,"ai":72},"surveyAnswers":[],"answers":[],"resultData":{"primaryTitle":"Final E2E","scoreSummary":"debug"},"utm":{"source":"final-gift-e2e"}}
+          EOF
+          curl -fsSL -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/result.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/save.txt
+          grep -q '"ok":true' /tmp/save.txt
+      - name: Server draws random prize
+        run: |
+          set -euo pipefail
+          printf '%s' "{\"action\":\"drawPrize\",\"submissionId\":\"$ID\",\"contact\":\"0000000000\"}" > /tmp/draw.json
+          curl -fsSL -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/draw.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/draw.html
+          sleep 2
+          curl -fsSL "https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec?action=getPrize&id=$ID" > /tmp/prize1.json
+          cat /tmp/prize1.json
+          grep -Eq '"prizeKey":"(voucher|expert_session|coaching_month)"' /tmp/prize1.json
+          python - <<'PY'
+          import json, os
+          p=json.load(open('/tmp/prize1.json'))
+          open('/tmp/key.txt','w').write(p['prizeKey'])
+          PY
+      - name: Second draw keeps same prize
+        run: |
+          set -euo pipefail
+          printf '%s' "{\"action\":\"drawPrize\",\"submissionId\":\"$ID\",\"contact\":\"0000000000\"}" > /tmp/draw2.json
+          curl -fsSL -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/draw2.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/draw2.html
+          sleep 2
+          curl -fsSL "https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec?action=getPrize&id=$ID" > /tmp/prize2.json
+          python - <<'PY'
+          import json
+          a=json.load(open('/tmp/prize1.json'))['prizeKey']
+          b=json.load(open('/tmp/prize2.json'))['prizeKey']
+          assert a==b,(a,b)
+          print('stable prize:',a)
+          PY
+      - name: Claim and verify
+        run: |
+          set -euo pipefail
+          printf '%s' "{\"action\":\"claimPrize\",\"submissionId\":\"$ID\",\"contact\":\"0000000000\"}" > /tmp/claim.json
+          curl -fsSL -H 'Content-Type: text/plain;charset=UTF-8' --data-binary @/tmp/claim.json 'https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec' > /tmp/claim.html
+          sleep 2
+          curl -fsSL "https://script.google.com/macros/s/AKfycbw9qLBLLtLl-xuVS5qyYbxxz0dkt6EBxE-3Mb_dipviTqDpTGK4GWT9YkwukERw8nvg/exec?action=getPrize&id=$ID" > /tmp/claimed.json
+          cat /tmp/claimed.json
+          grep -q '"claimed":true' /tmp/claimed.json
