@@ -12,6 +12,7 @@ on:
       - 'gift-v6.js'
       - 'gift-layout-fix.js'
       - 'gift-explosion-v7.js'
+      - 'gift-speed-v8.js'
       - '.github/workflows/inject-api-bridge.yml'
   workflow_dispatch:
 
@@ -35,9 +36,9 @@ jobs:
           s=re.sub(r'<script src="api-bridge\.js\?v=\d+"></script>','<script src="api-bridge.js?v=6"></script>',s)
           if '<script src="api-bridge.js?v=6"></script>' not in s:
               s=s.replace('</body>','<script src="api-bridge.js?v=6"></script>\n</body>')
-          for name in ['upgrade-v2','enneagram-tie-fix','result-clarity','wheel-fix','gift-v6','gift-layout-fix','gift-explosion-v7']:
+          for name in ['upgrade-v2','enneagram-tie-fix','result-clarity','wheel-fix','gift-v6','gift-layout-fix','gift-explosion-v7','gift-speed-v8']:
               s=re.sub(r'\n?<script src="'+re.escape(name)+r'\.js\?v=\d+"></script>','',s)
-          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="result-clarity.js?v=1"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>\n<script src="gift-layout-fix.js?v=1"></script>\n<script src="gift-explosion-v7.js?v=1"></script>')
+          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="result-clarity.js?v=1"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>\n<script src="gift-layout-fix.js?v=1"></script>\n<script src="gift-explosion-v7.js?v=1"></script>\n<script src="gift-speed-v8.js?v=1"></script>')
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit patched index
@@ -45,5 +46,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Load Luxury Explosion gift reveal v7" || exit 0
+          git commit -m "Load fast luxury gift timing v8" || exit 0
           git push
