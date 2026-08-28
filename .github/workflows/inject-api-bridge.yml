@@ -40,7 +40,8 @@ jobs:
               s=s.replace('</body>','<script src="api-bridge.js?v=6"></script>\n</body>')
           for name in ['upgrade-v2','enneagram-tie-fix','result-clarity','wheel-fix','gift-v6','gift-layout-fix','gift-explosion-v7','gift-speed-v8','zalo-reward-v9','quick-profile-v10']:
               s=re.sub(r'\n?<script src="'+re.escape(name)+r'\.js\?v=\d+"></script>','',s)
-          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="result-clarity.js?v=1"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>\n<script src="gift-layout-fix.js?v=1"></script>\n<script src="gift-explosion-v7.js?v=1"></script>\n<script src="gift-speed-v8.js?v=1"></script>\n<script src="zalo-reward-v9.js?v=1"></script>\n<script src="quick-profile-v10.js?v=1"></script>')
+          s=re.sub(r'\n?<script id="quick-profile-boot">.*?</script>','',s,flags=re.S)
+          s=s.replace('<script src="api-bridge.js?v=6"></script>','<script src="api-bridge.js?v=6"></script>\n<script src="upgrade-v2.js?v=1"></script>\n<script src="enneagram-tie-fix.js?v=2"></script>\n<script src="result-clarity.js?v=1"></script>\n<script src="wheel-fix.js?v=5"></script>\n<script src="gift-v6.js?v=4"></script>\n<script src="gift-layout-fix.js?v=1"></script>\n<script src="gift-explosion-v7.js?v=1"></script>\n<script src="gift-speed-v8.js?v=1"></script>\n<script src="zalo-reward-v9.js?v=1"></script>\n<script src="quick-profile-v10.js?v=1"></script>\n<script id="quick-profile-boot">if(!new URLSearchParams(location.search).get("result"))setTimeout(()=>renderHome(),0);</script>')
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit patched index
@@ -48,5 +49,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Load Quick Profile funnel v10" || exit 0
+          git commit -m "Boot Quick Profile home" || exit 0
           git push
