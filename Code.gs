@@ -14,7 +14,7 @@ const HEADERS=[
   'Prize Key','Phần quà bí mật','Thời gian quay','Đã nhận quà?','Thời gian nhận quà'
 ];
 
-const TEST_TITLES=Object.freeze({enneagram:'Enneagram Mini',direction:'Life Direction',career:'Career DNA',attachment:'Attachment Style',ai:'AI Readiness'});
+const TEST_TITLES=Object.freeze({quick_profile:'Quick Inner Profile',enneagram:'Enneagram Mini',direction:'Life Direction',career:'Career DNA',attachment:'Attachment Style',ai:'AI Readiness'});
 const PRIZES=Object.freeze({
   voucher:{key:'voucher',title:'Voucher khóa học trị giá 1.000.000đ'},
   expert_session:{key:'expert_session',title:'01 buổi giải thích kết quả với chuyên gia tâm lý'},
@@ -135,9 +135,24 @@ function setupSheet(){const sheet=getSheet_();ensureHeaders_(sheet);return {ok:t
 function getSheet_(){const ss=SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID),sheet=ss.getSheetByName(CONFIG.SHEET_NAME);if(!sheet)throw new Error('Không tìm thấy sheet "'+CONFIG.SHEET_NAME+'".');return sheet}
 function buildResultUrl_(id){return (CONFIG.PUBLIC_APP_URL||'').replace(/\/?$/,'/')+'?result='+encodeURIComponent(id)}
 function cleanCallback_(v){const s=cleanText_(v,120);return /^[A-Za-z_$][0-9A-Za-z_$]*(?:\.[A-Za-z_$][0-9A-Za-z_$]*)*$/.test(s)?s:''}
-function makeSubmissionId_(){const stamp=Utilities.formatDate(new Date(),Session.getScriptTimeZone()||'Asia/Ho_Chi_Minh','yyMMdd');return stamp+'-'+Utilities.getUuid().replace(/-/g,'').slice(0,10)}
-function surveySummary_(s){const vals=['self','patterns','agency','ai'].map(k=>Number(s[k]||0)),avg=vals.reduce((a,b)=>a+b,0)/4,band=avg>=76?'Nền tảng phản tư tốt':avg>=56?'Đang xây nền tảng phản tư':'Nên bắt đầu từ việc gọi tên';return band+' · Hiểu mình '+vals[0]+'% · Nhìn ra mô thức '+vals[1]+'% · Sẵn sàng hành động '+vals[2]+'% · Dùng AI có chủ đích '+vals[3]+'%'}
-function surveyReflection_(s){const vals=['self','patterns','agency','ai'].map(k=>Number(s[k]||0)),avg=vals.reduce((a,b)=>a+b,0)/4;if(avg>=76)return'AI có thể trở thành một chiếc gương hữu ích: bạn đã có nền tảng khá tốt để phản tư, kiểm chứng và biến insight thành hành động.';if(avg>=56)return'AI có thể giúp bạn nhìn rõ hơn nếu bạn dùng nó để đặt câu hỏi, kiểm chứng và chuyển insight thành hành động.';return'AI nên bắt đầu bằng việc giúp bạn gọi tên điều đang diễn ra, thay vì cố đưa ra câu trả lời thay bạn.'}
+function makeSubmissionId_(){const stamp=Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','yyMMdd');return stamp+'-'+Utilities.getUuid().replace(/-/g,'').slice(0,10)}
+function surveySummary_(s){
+  if(s&&s.personalityType){
+    const type='Type '+cleanText_(s.personalityType,10)+(s.personalityName?' · '+cleanText_(s.personalityName,80):'');
+    const healing=s.healingTitle?' · Vùng cần chăm sóc: '+cleanText_(s.healingTitle,160):'';
+    const confidence=s.confidence?' · Độ rõ: '+cleanText_(s.confidence,40):'';
+    return type+healing+confidence;
+  }
+  const vals=['self','patterns','agency','ai'].map(k=>Number(s[k]||0)),avg=vals.reduce((a,b)=>a+b,0)/4,band=avg>=76?'Nền tảng phản tư tốt':avg>=56?'Đang xây nền tảng phản tư':'Nên bắt đầu từ việc gọi tên';return band+' · Hiểu mình '+vals[0]+'% · Nhìn ra mô thức '+vals[1]+'% · Sẵn sàng hành động '+vals[2]+'% · Dùng AI có chủ đích '+vals[3]+'%';
+}
+function surveyReflection_(s){
+  if(s&&s.personalityType){
+    const main=s.healingTitle?cleanText_(s.healingTitle,180):'một vùng cần được chăm sóc thêm';
+    const secondary=s.secondaryHealing?' Hướng phụ đáng để quan sát: '+cleanText_(s.secondaryHealing,180)+'.':'';
+    return 'Gợi ý tự khám phá: '+main+'.'+secondary+' Đây không phải chẩn đoán hay điều trị tâm lý.';
+  }
+  const vals=['self','patterns','agency','ai'].map(k=>Number(s[k]||0)),avg=vals.reduce((a,b)=>a+b,0)/4;if(avg>=76)return'AI có thể trở thành một chiếc gương hữu ích: bạn đã có nền tảng khá tốt để phản tư, kiểm chứng và biến insight thành hành động.';if(avg>=56)return'AI có thể giúp bạn nhìn rõ hơn nếu bạn dùng nó để đặt câu hỏi, kiểm chứng và chuyển insight thành hành động.';return'AI nên bắt đầu bằng việc giúp bạn gọi tên điều đang diễn ra, thay vì cố đưa ra câu trả lời thay bạn.';
+}
 function scoreSummaryFromResult_(r){if(!r||!r.scores)return'';return Object.keys(r.scores).map(k=>k+' '+r.scores[k]).join(' · ')}
 function cleanText_(v,max){const s=v==null?'':String(v).replace(/[\u0000-\u001F\u007F]/g,' ').trim();return s.slice(0,max||5000)}
 function safeObject_(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}
